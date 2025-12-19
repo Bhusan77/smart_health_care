@@ -1,53 +1,53 @@
 import 'package:flutter/material.dart';
+import 'package:smart_health_care/screens/bottomScreen/home_screen.dart';
+import 'package:smart_health_care/screens/bottomScreen/pharmacy_screen.dart';
+import 'package:smart_health_care/screens/bottomScreen/profile_screen.dart';
+import 'package:smart_health_care/screens/bottomScreen/report_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _BottomNavigationScreenState();
+}
+
+class _BottomNavigationScreenState extends State<DashboardScreen> {
+  int _selectedIndex = 0;
+
+  final List<Widget> _screens = [
+    const HomeScreen(),
+    const PharmacyScreen(),
+    const ReportScreen(),
+    const ProfileScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFD7F6FB),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
+      // 🔹 THIS LINE FIXES WHITE SCREEN
+      body: _screens[_selectedIndex],
 
-            
-              const Text(
-                "Pharmacy Dashboard",
-                style: TextStyle(
-                
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.indigo,
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              const Text(
-                "In Sprint 2",
-                style: TextStyle(color: Color.fromARGB(255, 21, 20, 20)),
-              ),
-
-              const SizedBox(height: 40),
-
-              
-
-              
-              
-
-              
-            ],
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: _selectedIndex,
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.book), label: "Pharmacy"),
+          BottomNavigationBarItem(icon: Icon(Icons.book), label: "Reports"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: "Profile",
           ),
-        ),
+        ],
+        backgroundColor: Color.fromARGB(255, 118, 178, 238),
+        selectedItemColor: Colors.white,
+        unselectedItemColor: Colors.black,
       ),
     );
   }
 }
-
-  
-      
-      
