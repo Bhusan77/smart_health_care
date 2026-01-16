@@ -19,11 +19,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   bool hidePassword = true;
   bool hideConfirm = true;
   final _formKey = GlobalKey<FormState>();
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmpasswordController = TextEditingController();
   @override
   void dispose() {
+    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmpasswordController.dispose();
@@ -34,8 +36,10 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       await ref
           .read(authViewModelProvider.notifier)
           .register(
+            username:_usernameController.text.trim(),
             email: _emailController.text.trim(),
             password: _passwordController.text,
+          
           );
     }
   }
@@ -107,7 +111,11 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                 ),
             
                 const SizedBox(height: 30),
+
+                inputField("Username", Icons.person, false,_usernameController),
             
+                const SizedBox(height: 15),
+          
                 
                 inputField("Email", Icons.email, false,_emailController),
             
