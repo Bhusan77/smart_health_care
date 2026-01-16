@@ -8,13 +8,13 @@ import 'package:smart_health_care/features/auth/domain/entities/auth_entity.dart
 import 'package:smart_health_care/features/auth/domain/repositories/auth_repository.dart';
 
 class RegisterParams extends Equatable {
- 
+  final String username;
   final String email;
   final String password;
   
 
   const RegisterParams({
-   
+   required this.username,
     required this.email,
     required this.password,
    
@@ -22,7 +22,7 @@ class RegisterParams extends Equatable {
 
   @override
   List<Object?> get props => [
-    
+    username,
     email,
     password,
     
@@ -44,7 +44,7 @@ class RegisterUsecase implements UsecaseWithParms<bool, RegisterParams> {
   @override
   Future<Either<Failure, bool>> call(RegisterParams params) {
     final authEntity = AuthEntity(
-      
+      username: params.username,
       email: params.email,
       password: params.password,
       
