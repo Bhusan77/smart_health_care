@@ -1,8 +1,8 @@
-import 'package:json_annotation/json_annotation.dart';
+
 import 'package:smart_health_care/features/auth/domain/entities/auth_entity.dart';
 
 
-@JsonSerializable()
+
 class AuthApiModel {
   String? id;
   String?username;
