@@ -2,20 +2,21 @@ import 'package:dio/dio.dart';
 import 'package:dio_smart_retry/dio_smart_retry.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import 'package:smart_health_care/core/api/api_endpoints.dart';
-
+import 'package:smart_health_care/core/services/storage/token_service.dart';
 
 // Provider for ApiClient
 final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient();
+  final tokenService = ref.read(tokenServiceProvider);
+  return ApiClient(tokenService: tokenService);
 });
 
 class ApiClient {
+  final TokenService tokenService;
   late final Dio _dio;
 
-  ApiClient() {
+  ApiClient({required this.tokenService}) {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiEndpoints.baseUrl,
@@ -28,8 +29,8 @@ class ApiClient {
       ),
     );
 
-    // Add interceptors
-    _dio.interceptors.add(_AuthInterceptor());
+    // ✅ Add auth interceptor (adds Bearer token)
+    _dio.interceptors.add(AuthInterceptor(tokenService));
 
     // Auto retry on network failures
     _dio.interceptors.add(
@@ -42,7 +43,6 @@ class ApiClient {
           Duration(seconds: 3),
         ],
         retryEvaluator: (error, attempt) {
-          // Retry on connection errors and timeouts, not on 4xx/5xx
           return error.type == DioExceptionType.connectionTimeout ||
               error.type == DioExceptionType.sendTimeout ||
               error.type == DioExceptionType.receiveTimeout ||
@@ -51,7 +51,6 @@ class ApiClient {
       ),
     );
 
-    // Only add logger in debug mode
     if (kDebugMode) {
       _dio.interceptors.add(
         PrettyDioLogger(
@@ -68,103 +67,51 @@ class ApiClient {
 
   Dio get dio => _dio;
 
-  // GET request
-  Future<Response> get(
-    String path, {
-    Map<String, dynamic>? queryParameters,
-    Options? options,
-  }) async {
-    return _dio.get(path, queryParameters: queryParameters, options: options);
-  }
+  Future<Response> get(String path,
+          {Map<String, dynamic>? queryParameters, Options? options}) =>
+      _dio.get(path, queryParameters: queryParameters, options: options);
 
-  // POST request
-  Future<Response> post(
-    String path, {
-    dynamic data,
-    Map<String, dynamic>? queryParameters,
-    Options? options,
-  }) async {
-    return _dio.post(
-      path,
-      data: data,
-      queryParameters: queryParameters,
-      options: options,
-    );
-  }
+  Future<Response> post(String path,
+          {dynamic data, Map<String, dynamic>? queryParameters, Options? options}) =>
+      _dio.post(path, data: data, queryParameters: queryParameters, options: options);
 
-  // PUT request
-  Future<Response> put(
-    String path, {
-    dynamic data,
-    Map<String, dynamic>? queryParameters,
-    Options? options,
-  }) async {
-    return _dio.put(
-      path,
-      data: data,
-      queryParameters: queryParameters,
-      options: options,
-    );
-  }
+  Future<Response> put(String path,
+          {dynamic data, Map<String, dynamic>? queryParameters, Options? options}) =>
+      _dio.put(path, data: data, queryParameters: queryParameters, options: options);
 
-  // PATCH request
-  Future<Response> patch(
-    String path, {
-    dynamic data,
-    Map<String, dynamic>? queryParameters,
-    Options? options,
-  }) async {
-    return _dio.patch(
-      path,
-      data: data,
-      queryParameters: queryParameters,
-      options: options,
-    );
-  }
+  Future<Response> patch(String path,
+          {dynamic data, Map<String, dynamic>? queryParameters, Options? options}) =>
+      _dio.patch(path, data: data, queryParameters: queryParameters, options: options);
 
-  // DELETE request
-  Future<Response> delete(
-    String path, {
-    dynamic data,
-    Map<String, dynamic>? queryParameters,
-    Options? options,
-  }) async {
-    return _dio.delete(
-      path,
-      data: data,
-      queryParameters: queryParameters,
-      options: options,
-    );
-  }
-
-  // Multipart request for file uploads
-  Future<Response> uploadFile(
-    String path, {
-    required FormData formData,
-    Options? options,
-    ProgressCallback? onSendProgress,
-  }) async {
-    return _dio.post(
-      path,
-      data: formData,
-      options: options,
-      onSendProgress: onSendProgress,
-    );
-  }
+  Future<Response> delete(String path,
+          {dynamic data, Map<String, dynamic>? queryParameters, Options? options}) =>
+      _dio.delete(path, data: data, queryParameters: queryParameters, options: options);
 }
 
-// Auth Interceptor to add JWT token to requests
-class _AuthInterceptor extends Interceptor {
-  final _storage = const FlutterSecureStorage();
-  static const String _tokenKey = 'auth_token';
+/// ✅ Reads token from SharedPreferences TokenService
+/// ✅ Adds Authorization: Bearer <token>
+class AuthInterceptor extends Interceptor {
+  final TokenService tokenService;
+  AuthInterceptor(this.tokenService);
 
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) {
-    // Handle 401 Unauthorized - token expired
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+    final token = await tokenService.getToken();
+
+    if (token != null && token.isNotEmpty && token != "null" && token != "undefined") {
+      options.headers["Authorization"] = "Bearer $token";
+    } else {
+      options.headers.remove("Authorization");
+    }
+
+    handler.next(options);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
     if (err.response?.statusCode == 401) {
-      // Clear token and redirect to login
-      _storage.delete(key: _tokenKey);
-      // You can add navigation logic here or use a callback
+      await tokenService.removeToken();
+      // optional: trigger logout provider / navigation
     }
     handler.next(err);
   }

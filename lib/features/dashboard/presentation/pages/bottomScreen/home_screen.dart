@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smart_health_care/features/appointments/presentation/pages/my_appointments_page.dart';
+import 'package:smart_health_care/features/doctor/presentation/pages/doctor_detail_page.dart';
+import 'package:smart_health_care/features/doctor/presentation/pages/doctors_list_page.dart';
+import 'package:smart_health_care/features/doctor/presentation/providers/doctor_provider.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final doctorsAsync = ref.watch(doctorsProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       body: SafeArea(
@@ -18,7 +25,7 @@ class HomeScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Hello,\nMr.Bhusan Shrestha',
+                    'Hello 👋\nWelcome back',
                     style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                   ),
                   Row(
@@ -37,63 +44,114 @@ class HomeScreen extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: const [
-                  Text('Categories', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                  Text('View All', style: TextStyle(color: Colors.blue)),
+                  Text(
+                    'Categories',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
                 ],
               ),
 
               const SizedBox(height: 12),
 
               Row(
-                children: const [
-                  CategoryCard(icon: Icons.check_circle, title: 'Reports'),
-                  SizedBox(width: 12),
-                  CategoryCard(icon: Icons.local_pharmacy, title: 'Pharmacy'),
+                children: [
+                  CategoryCard(
+                    icon: Icons.check_circle,
+                    title: 'My Appointments',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MyAppointmentsPage()),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  const CategoryCard(
+                    icon: Icons.local_pharmacy,
+                    title: 'Pharmacy',
+                  ),
                 ],
               ),
 
               const SizedBox(height: 24),
 
-              // Doctors
+              // Doctors header
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text('Our doctors', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                  Text('View All', style: TextStyle(color: Colors.blue)),
+                children: [
+                  const Text(
+                    'Our doctors',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const DoctorsListPage()),
+                      );
+                    },
+                    child: const Text('View All', style: TextStyle(color: Colors.blue)),
+                  ),
                 ],
               ),
 
               const SizedBox(height: 12),
 
+              // Doctors list from API
               Expanded(
-                child: ListView(
-                  children: const [
-                    AppointmentCard(
-                      name: 'Dr.Babu Ram Bhattarai',
-                      specialty: 'General Surgeon',
-                      rating: 4.9,
-                      time: '09:00 am - 02:00 pm',
-                      image:'assets/images/doctor.jpg',
-                      
-                    ),
-                    AppointmentCard(
-                      name: 'Dr.Sanduk Ruit',
-                      specialty: 'Eye Specialist',
-                      rating: 4.8,
-                      time: '10:00 am - 04:00 pm',
-                      image:'assets/images/doctor2.jpg'
+                child: doctorsAsync.when(
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Center(child: Text("Error: $e")),
+                  data: (list) {
+                    if (list.isEmpty) {
+                      return const Center(child: Text("No doctors found"));
+                    }
 
-                    ),
-                    AppointmentCard(
-                      name: 'Ronaldo Shrestha',
-                      specialty: 'Pharmacist',
-                      rating: 3.6,
-                      time: '10:00 am - 06:00 pm',
-                      image:'assets/images/pharmacist.jpg'
-                    ),
-                  ],
+                    return RefreshIndicator(
+                      onRefresh: () async => ref.refresh(doctorsProvider),
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        itemCount: list.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, i) {
+                          final d = list[i] as Map<String, dynamic>;
+
+                          final id = (d["_id"] ?? d["id"]).toString();
+                          final name = (d["name"] ?? "").toString();
+
+                          // ✅ Your DB uses specialization (with z)
+                          final specialization =
+                              (d["specialization"] ?? d["specialization"] ?? "").toString();
+
+                          final fee = (d["fee"] ?? 0).toString();
+
+                          // Optional fields
+                          final phone = d["phone"]?.toString();
+                          final email = d["email"]?.toString();
+                          final isActive = d["isActive"] == true;
+
+                          return DoctorCard(
+                            name: name,
+                            specialization: specialization,
+                            fee: fee,
+                            phone: phone,
+                            email: email,
+                            isActive: isActive,
+                            onBook: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => DoctorDetailPage(doctorId: id),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    );
+                  },
                 ),
-              )
+              ),
             ],
           ),
         ),
@@ -102,57 +160,66 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-
-
 class CategoryCard extends StatelessWidget {
   final IconData icon;
   final String title;
+  final VoidCallback? onTap;
 
-  const CategoryCard({super.key, required this.icon, required this.title});
+  const CategoryCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: Colors.blue, size: 36),
-            const SizedBox(height: 8),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          ],
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: Colors.blue, size: 36),
+              const SizedBox(height: 8),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-
-
-class AppointmentCard extends StatelessWidget {
+class DoctorCard extends StatelessWidget {
   final String name;
-  final String specialty;
-  final double rating;
-  final String time;
-  final String image;
+  final String specialization;
+  final String fee;
+  final String? phone;
+  final String? email;
+  final bool isActive;
+  final VoidCallback onBook;
 
-  const AppointmentCard({
+  const DoctorCard({
     super.key,
     required this.name,
-    required this.specialty,
-    required this.rating,
-    required this.time,
-    required this.image,
+    required this.specialization,
+    required this.fee,
+    required this.onBook,
+    this.phone,
+    this.email,
+    this.isActive = true,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -160,39 +227,46 @@ class AppointmentCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const CircleAvatar(radius: 28,
-          // backgroundImage: AssetImage('assets/images'),
-          backgroundImage: AssetImage('assets/images/doctor.jpg'), 
-          backgroundColor: Colors.blueAccent),
+          const CircleAvatar(
+            radius: 28,
+            backgroundColor: Colors.blueAccent,
+            child: Icon(Icons.person, color: Colors.white),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Row(
-                      children: [
-                        const Icon(Icons.star, color: Colors.orange, size: 16),
-                        Text(rating.toString()),
-                      ],
-                    )
-                  ],
+                Text(name,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const SizedBox(height: 4),
+                Text(
+                  specialization,
+                  style: const TextStyle(color: Colors.grey),
                 ),
                 const SizedBox(height: 4),
-                Text(specialty, style: const TextStyle(color: Colors.grey)),
-                const SizedBox(height: 4),
-                Text(time),
+                Text("Fee: $fee"),
+                if (phone != null && phone!.isNotEmpty) Text("Phone: $phone"),
+                if (email != null && email!.isNotEmpty) Text("Email: $email"),
+                const SizedBox(height: 6),
+                Text(
+                  isActive ? "Active" : "Inactive",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isActive ? Colors.green : Colors.red,
+                  ),
+                ),
               ],
             ),
           ),
+          const SizedBox(width: 10),
           ElevatedButton(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            onPressed: onBook,
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
             child: const Text('Book now'),
-          )
+          ),
         ],
       ),
     );
