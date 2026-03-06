@@ -1,18 +1,17 @@
 import 'package:equatable/equatable.dart';
-import 'package:smart_health_care/features/auth/domain/entities/auth_entity.dart';
 
 enum AuthStatus {
   initial,
   loading,
   authenticated,
-  unauthenticated,
   registered,
+  passwordChanged,
   error,
 }
 
 class AuthState extends Equatable {
   final AuthStatus status;
-  final AuthEntity? user;
+  final dynamic user;
   final String? errorMessage;
 
   const AuthState({
@@ -23,13 +22,13 @@ class AuthState extends Equatable {
 
   AuthState copyWith({
     AuthStatus? status,
-    AuthEntity? user,
+    dynamic user,
     String? errorMessage,
   }) {
     return AuthState(
       status: status ?? this.status,
       user: user ?? this.user,
-      errorMessage: errorMessage ?? this.errorMessage,
+      errorMessage: errorMessage,
     );
   }
 

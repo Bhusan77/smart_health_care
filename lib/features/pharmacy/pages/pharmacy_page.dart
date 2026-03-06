@@ -11,7 +11,7 @@ class PharmacyPage extends ConsumerWidget {
     final medicinesAsync = ref.watch(medicinesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Olala Medical Hall")),
+      appBar: AppBar(title: const Text("Pharmacy")),
       body: medicinesAsync.when(
         data: (list) {
           if (list.isEmpty) {

@@ -20,7 +20,9 @@ class ApiEndpoints {
 
   static const String doctors = "/api/doctors";
   static const String appointments = "/api/appointments";
-
+  static const String medicines = "/api/pharmacy/medicines";
+  static const String orders = "/api/pharmacy/orders";
+  static const String myOrders = "/api/pharmacy/orders/me";
 
 
 }

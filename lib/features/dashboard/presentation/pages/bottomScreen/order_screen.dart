@@ -7,7 +7,7 @@ class ReportScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox.expand(
       child: Center(
-        child: Text("Report Screen"),
+        child: Text("My Orders"),
       ),
     );
   }
