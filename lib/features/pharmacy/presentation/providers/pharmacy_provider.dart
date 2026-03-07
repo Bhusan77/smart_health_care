@@ -11,3 +11,8 @@ final medicinesProvider = FutureProvider<List<dynamic>>((ref) async {
   final api = ref.read(pharmacyApiProvider);
   return api.getMedicines();
 });
+
+final myOrdersProvider = FutureProvider<List<dynamic>>((ref) async {
+  final api = ref.read(pharmacyApiProvider);
+  return api.getMyOrders();
+});

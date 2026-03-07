@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:smart_health_care/core/widget/my_button.dart';
 import 'package:smart_health_care/features/auth/presentation/pages/login_screen.dart';
 import 'package:smart_health_care/features/auth/presentation/pages/onboard_screentwo.dart';
-
-
-
+import 'package:smart_health_care/features/sensors/presentation/view/sensor_test_page.dart';
 
 class Onboarding1 extends StatelessWidget {
   const Onboarding1({super.key});
@@ -23,6 +21,15 @@ class Onboarding1 extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (context) => const LoginScreen(),
+      ),
+    );
+  }
+
+  void _openSensors(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SensorTestPage(),
       ),
     );
   }
@@ -63,7 +70,10 @@ class Onboarding1 extends StatelessWidget {
               const Text(
                 'Find top doctors near you and\nchoose the best one.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Color.fromARGB(255, 7, 7, 7)),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color.fromARGB(255, 7, 7, 7),
+                ),
               ),
 
               const SizedBox(height: 24),
@@ -90,6 +100,16 @@ class Onboarding1 extends StatelessWidget {
                       'Skip',
                       style: TextStyle(
                         color: Color.fromARGB(255, 244, 244, 245),
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => _openSensors(context),
+                    child: const Text(
+                      'Sensors',
+                      style: TextStyle(
+                        color: Colors.white,
                         fontSize: 16,
                       ),
                     ),

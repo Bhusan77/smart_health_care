@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:smart_health_care/features/orders/presentation/providers/order_provider.dart';
+import 'package:smart_health_care/features/payment/presentation/pages/esewa_payment_page.dart';
+import 'package:smart_health_care/features/payment/presentation/providers/payment_provider.dart';
 import 'package:smart_health_care/features/pharmacy/presentation/providers/cart_provider.dart';
+import 'package:smart_health_care/features/pharmacy/presentation/providers/pharmacy_provider.dart';
 
 class CartPage extends ConsumerStatefulWidget {
   const CartPage({super.key});
@@ -12,6 +14,7 @@ class CartPage extends ConsumerStatefulWidget {
 
 class _CartPageState extends ConsumerState<CartPage> {
   final addressCtrl = TextEditingController();
+  bool isLoading = false;
 
   @override
   void dispose() {
@@ -19,29 +22,122 @@ class _CartPageState extends ConsumerState<CartPage> {
     super.dispose();
   }
 
+  Future<void> _placeOrderAndPay() async {
+    final cart = ref.read(cartProvider);
+    final cartNotifier = ref.read(cartProvider.notifier);
+
+    if (cart.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Cart is empty")),
+      );
+      return;
+    }
+
+    if (addressCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter delivery address")),
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      final pharmacyApi = ref.read(pharmacyApiProvider);
+      final paymentRemote = ref.read(paymentRemoteDataSourceProvider);
+
+      final items = cart.map((item) {
+        final medicine = item["medicine"] as Map<String, dynamic>;
+        final medicineId = (medicine["_id"] ?? medicine["id"]).toString();
+        final qty = item["qty"] as int;
+
+        return {
+          "medicine": medicineId,
+          "qty": qty,
+        };
+      }).toList();
+
+      // 1. Create order
+      final orderRes = await pharmacyApi.createOrder(
+        items: items,
+        deliveryAddress: addressCtrl.text.trim(),
+      );
+
+      if (orderRes["success"] != true) {
+        throw Exception(orderRes["message"] ?? "Order creation failed");
+      }
+
+      final order = Map<String, dynamic>.from(orderRes["order"] ?? {});
+      final orderId = (order["_id"] ?? "").toString();
+
+      if (orderId.isEmpty) {
+        throw Exception("Order ID not returned from backend");
+      }
+
+      // 2. Initiate eSewa payment
+      final paymentRes = await paymentRemote.initiateEsewaPayment(
+        orderId: orderId,
+      );
+
+      debugPrint("Payment response: $paymentRes");
+
+      if (paymentRes["success"] != true) {
+        throw Exception(paymentRes["message"] ?? "Payment initiation failed");
+      }
+
+      // Backend returns paymentUrl and formData at top level
+      final paymentUrl = (paymentRes["paymentUrl"] ?? "").toString();
+      final formData = Map<String, dynamic>.from(paymentRes["formData"] ?? {});
+
+      if (paymentUrl.isEmpty || formData.isEmpty) {
+        throw Exception("Invalid payment data from backend");
+      }
+
+      if (!mounted) return;
+
+      // 3. Open eSewa payment page
+      final result = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EsewaPaymentPage(
+            paymentUrl: paymentUrl,
+            formData: formData,
+          ),
+        ),
+      );
+
+      ref.invalidate(myOrdersProvider);
+
+      if (!mounted) return;
+
+      if (result == true) {
+        cartNotifier.clearCart();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Payment successful ✅")),
+        );
+
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Payment failed or cancelled")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cart = ref.watch(cartProvider);
     final cartNotifier = ref.read(cartProvider.notifier);
-    final orderAction = ref.watch(orderActionProvider);
-
-    ref.listen(orderActionProvider, (prev, next) {
-      next.whenOrNull(
-        data: (_) {
-          if (prev is AsyncLoading) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Order placed successfully ✅")),
-            );
-            Navigator.pop(context);
-          }
-        },
-        error: (e, _) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Error: $e")),
-          );
-        },
-      );
-    });
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
@@ -104,9 +200,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                             ],
                           ),
                         ),
-
                         const SizedBox(height: 18),
-
                         ...List.generate(cart.length, (i) {
                           final item = cart[i];
                           final medicine =
@@ -217,9 +311,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                             ),
                           );
                         }),
-
                         const SizedBox(height: 8),
-
                         const Text(
                           "Delivery Address",
                           style: TextStyle(
@@ -227,9 +319,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-
                         const SizedBox(height: 12),
-
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.white,
@@ -246,9 +336,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 16),
-
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
@@ -275,9 +363,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 14),
-
                   SizedBox(
                     width: double.infinity,
                     height: 54,
@@ -290,27 +376,8 @@ class _CartPageState extends ConsumerState<CartPage> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
-                      onPressed: orderAction is AsyncLoading
-                          ? null
-                          : () {
-                              if (addressCtrl.text.trim().isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                        "Please enter delivery address"),
-                                  ),
-                                );
-                                return;
-                              }
-
-                              ref
-                                  .read(orderActionProvider.notifier)
-                                  .placeOrder(
-                                    deliveryAddress:
-                                        addressCtrl.text.trim(),
-                                  );
-                            },
-                      icon: orderAction is AsyncLoading
+                      onPressed: isLoading ? null : _placeOrderAndPay,
+                      icon: isLoading
                           ? const SizedBox(
                               height: 18,
                               width: 18,
@@ -319,11 +386,9 @@ class _CartPageState extends ConsumerState<CartPage> {
                                 color: Colors.white,
                               ),
                             )
-                          : const Icon(Icons.check_circle_outline),
+                          : const Icon(Icons.payment),
                       label: Text(
-                        orderAction is AsyncLoading
-                            ? "Placing Order..."
-                            : "Place Order",
+                        isLoading ? "Processing..." : "Place Order & Pay",
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
