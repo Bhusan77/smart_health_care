@@ -1,15 +1,56 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import '../providers/doctor_provider.dart';
 import '../../../appointments/presentation/pages/create_appointment_page.dart';
 
-class DoctorDetailPage extends ConsumerWidget {
+class DoctorDetailPage extends ConsumerStatefulWidget {
   final String doctorId;
   const DoctorDetailPage({super.key, required this.doctorId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final doctorAsync = ref.watch(doctorByIdProvider(doctorId));
+  ConsumerState<DoctorDetailPage> createState() => _DoctorDetailPageState();
+}
+
+class _DoctorDetailPageState extends ConsumerState<DoctorDetailPage> {
+  StreamSubscription<GyroscopeEvent>? _gyroSubscription;
+
+  double gyroX = 0.0;
+  double gyroY = 0.0;
+  double gyroZ = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _startGyroscope();
+  }
+
+  void _startGyroscope() {
+    _gyroSubscription = gyroscopeEventStream().listen(
+      (GyroscopeEvent event) {
+        if (!mounted) return;
+        setState(() {
+          gyroX = event.x;
+          gyroY = event.y;
+          gyroZ = event.z;
+        });
+      },
+      onError: (error) {
+        debugPrint("Gyroscope error: $error");
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _gyroSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final doctorAsync = ref.watch(doctorByIdProvider(widget.doctorId));
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
@@ -116,13 +157,66 @@ class DoctorDetailPage extends ConsumerWidget {
                               ),
                               child: Text(
                                 isActive ? "Available" : "Unavailable",
-                                style: TextStyle(
-                                  color: isActive
-                                      ? Colors.white
-                                      : Colors.white,
+                                style: const TextStyle(
+                                  color: Colors.white,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Gyroscope card
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.screen_rotation,
+                                  color: Color(0xFF4A90E2),
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  "Gyroscope",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              "X Axis: ${gyroX.toStringAsFixed(2)}",
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              "Y Axis: ${gyroY.toStringAsFixed(2)}",
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              "Z Axis: ${gyroZ.toStringAsFixed(2)}",
+                              style: const TextStyle(fontSize: 15),
                             ),
                           ],
                         ),
@@ -227,7 +321,7 @@ class DoctorDetailPage extends ConsumerWidget {
                       context,
                       MaterialPageRoute(
                         builder: (_) =>
-                            CreateAppointmentPage(doctorId: doctorId),
+                            CreateAppointmentPage(doctorId: widget.doctorId),
                       ),
                     ),
                     icon: const Icon(Icons.calendar_month),

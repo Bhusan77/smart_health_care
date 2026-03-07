@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:smart_health_care/app/routes/app_routes.dart';
 import 'package:smart_health_care/core/utils/snackbar_utils.dart';
 import 'package:smart_health_care/features/auth/presentation/pages/signup_screen.dart';
 import 'package:smart_health_care/features/auth/presentation/state/auth_state.dart';
 import 'package:smart_health_care/features/auth/presentation/view_models/auth_viewmodel.dart';
 import 'package:smart_health_care/features/dashboard/presentation/pages/dashboard_screen.dart';
-
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -20,34 +20,89 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-@override
+
+  final LocalAuthentication _localAuth = LocalAuthentication();
+
+  bool hidePassword = true;
+  bool isBiometricLoading = false;
+
+  @override
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
-
     super.dispose();
-
   }
-  Future<void> _handleLogin() async {
 
+  Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
-      await ref
-          .read(authViewModelProvider.notifier)
-          .login(
+      await ref.read(authViewModelProvider.notifier).login(
             email: emailController.text.trim(),
             password: passwordController.text,
           );
     }
-
-
-    
   }
 
-   void _navigateToSignup() {
+  Future<void> _handleFingerprintLogin() async {
+    setState(() {
+      isBiometricLoading = true;
+    });
+
+    try {
+      final bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
+      final bool isDeviceSupported = await _localAuth.isDeviceSupported();
+
+      if (!canCheckBiometrics || !isDeviceSupported) {
+        if (!mounted) return;
+        SnackbarUtils.showError(
+          context,
+          "Fingerprint is not available on this device",
+        );
+        return;
+      }
+
+      final List<BiometricType> availableBiometrics =
+          await _localAuth.getAvailableBiometrics();
+
+      if (availableBiometrics.isEmpty) {
+        if (!mounted) return;
+        SnackbarUtils.showError(
+          context,
+          "No biometric method is enrolled on this device",
+        );
+        return;
+      }
+
+      final bool didAuthenticate = await _localAuth.authenticate(
+        localizedReason: 'Scan your fingerprint to login',
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: true,
+        ),
+      );
+
+      if (!mounted) return;
+
+      if (didAuthenticate) {
+        SnackbarUtils.showSuccess(context, "Fingerprint verified successfully");
+        AppRoutes.pushReplacement(context, const DashboardScreen());
+      } else {
+        SnackbarUtils.showError(context, "Fingerprint authentication failed");
+      }
+    } catch (e) {
+      if (!mounted) return;
+      SnackbarUtils.showError(context, "Biometric error: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          isBiometricLoading = false;
+        });
+      }
+    }
+  }
+
+  void _navigateToSignup() {
     AppRoutes.push(context, const SignUpScreen());
   }
-  bool hidePassword = true;
-
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +113,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         SnackbarUtils.showError(context, next.errorMessage!);
       }
     });
+
     return Scaffold(
       backgroundColor: const Color(0xFFD7F6FB),
       body: SafeArea(
@@ -65,132 +121,153 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           padding: const EdgeInsets.all(20),
           child: Form(
             key: _formKey,
-            child: Column(
-              children: [
-                const SizedBox(height: 40),
-
-          
-                Container(
-                  padding: const EdgeInsets.all(25),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color.fromARGB(31, 0, 0, 0),
-                        blurRadius: 8,
-                      ),
-                    ],
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  const SizedBox(height: 40),
+                  Container(
+                    padding: const EdgeInsets.all(25),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(15),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color.fromARGB(31, 0, 0, 0),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: const [
+                        Icon(
+                          Icons.local_pharmacy,
+                          size: 60,
+                          color: Colors.green,
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          "Olala Health Care",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Column(
-                    children: const [
-                      Icon(Icons.local_pharmacy,
-                          size: 60, color: Colors.green),
-                      SizedBox(height: 8),
-                      Text(
-                        "Olala Health Care",
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Login Here!!!",
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  TextFormField(
+                    controller: emailController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: inputDecoration("Email", Icons.person),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return "Email is required";
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 15),
+                  TextFormField(
+                    controller: passwordController,
+                    obscureText: hidePassword,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: inputDecoration(
+                      "Password",
+                      Icons.lock,
+                      suffix: IconButton(
+                        icon: Icon(
+                          hidePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: Colors.white,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            hidePassword = !hidePassword;
+                          });
+                        },
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return "Password is required";
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 30),
+                  SizedBox(
+                    width: 170,
+                    height: 45,
+                    child: ElevatedButton(
+                      onPressed: _handleLogin,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromARGB(255, 9, 124, 217),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
                         ),
                       ),
+                      child: const Text(
+                        "Login",
+                        style: TextStyle(fontSize: 18, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  SizedBox(
+                    width: 230,
+                    height: 45,
+                    child: ElevatedButton.icon(
+                      onPressed:
+                          isBiometricLoading ? null : _handleFingerprintLogin,
+                      icon: isBiometricLoading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.fingerprint, color: Colors.white),
+                      label: Text(
+                        isBiometricLoading
+                            ? "Checking..."
+                            : "Login with Fingerprint",
+                        style:
+                            const TextStyle(fontSize: 16, color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text("Don’t have an account? "),
+                      TextButton(
+                        onPressed: _navigateToSignup,
+                        child: const Text("Sign Up Here"),
+                      ),
                     ],
                   ),
-                ),
-
-                const SizedBox(height: 20),
-
-                const Text(
-                  "Login Here!!!",
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.blue,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-               
-                TextFormField(
-                  controller: emailController,
-                  style: const TextStyle(color: Colors.white), // ✅ WHITE TEXT
-                  decoration: inputDecoration("Email", Icons.person),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Email is required";
-                    }
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 15),
-
-           
-                TextFormField(
-                  controller: passwordController,
-                  obscureText: hidePassword,
-                  style: const TextStyle(color: Colors.white), // ✅ WHITE TEXT
-                  decoration: inputDecoration(
-                    "Password",
-                    Icons.lock,
-                    suffix: IconButton(
-                      icon: Icon(
-                        hidePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                        color: Colors.white,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          hidePassword = !hidePassword;
-                        });
-                      },
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Password is required";
-                    }
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 30),
-
-                
-                SizedBox(
-                  width: 170,
-                  height: 45,
-                  child: ElevatedButton(
-                    onPressed: _handleLogin,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color.fromARGB(255, 9, 124, 217),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                    ),
-                    child: const Text(
-                      "Login",
-                      style: TextStyle(fontSize: 18, color: Colors.white),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 15),
-
-                
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text("Don’t have an account? "),
-                    TextButton(
-                      onPressed: _navigateToSignup,
-                      child: const Text("Sign Up Here"),
-                    ),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -198,7 +275,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  
   InputDecoration inputDecoration(
     String hint,
     IconData icon, {

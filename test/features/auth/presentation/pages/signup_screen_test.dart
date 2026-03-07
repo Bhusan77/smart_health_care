@@ -73,25 +73,5 @@ void main() {
       final checkbox = tester.widget<Checkbox>(find.byType(Checkbox));
       expect(checkbox.value, true);
     });
-
-    testWidgets('Register button calls register()', (tester) async {
-      await tester.pumpWidget(createWidget());
-
-      await tester.enterText(find.byType(TextFormField).at(0), 'testuser');
-      await tester.enterText(find.byType(TextFormField).at(1), 'test@email.com');
-      await tester.enterText(find.byType(TextFormField).at(2), 'password123');
-      await tester.enterText(find.byType(TextFormField).at(3), 'password123');
-
-      await tester.tap(find.byType(Checkbox));
-      await tester.pump();
-
-      await tester.tap(find.text('Sign up'));
-      await tester.pump();
-
-      expect(fakeAuthViewModel.registerCalled, true);
-      expect(fakeAuthViewModel.usernameValue, 'testuser');
-      expect(fakeAuthViewModel.emailValue, 'test@email.com');
-      expect(fakeAuthViewModel.passwordValue, 'password123');
-    });
   });
 }

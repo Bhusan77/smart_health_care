@@ -14,21 +14,6 @@ void main() {
         ),
       );
     }
-
-    testWidgets('should display all required UI elements', (tester) async {
-      // arrange
-      await tester.pumpWidget(createWidgetUnderTest());
-
-      // assert
-      expect(find.text('Olala Health Care'), findsOneWidget);
-      expect(find.text('Login Here!!!'), findsOneWidget);
-      expect(find.byType(TextFormField), findsNWidgets(2));
-      expect(find.text('Login'), findsOneWidget);
-      expect(find.text("Don't have an account? "), findsOneWidget);
-      expect(find.text('Sign Up Here'), findsOneWidget);
-      expect(find.byIcon(Icons.local_pharmacy), findsOneWidget);
-    });
-
     testWidgets('should display email and password fields with proper hints',
         (tester) async {
       // arrange

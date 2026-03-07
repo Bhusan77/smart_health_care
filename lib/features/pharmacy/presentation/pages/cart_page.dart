@@ -23,94 +23,114 @@ class _CartPageState extends ConsumerState<CartPage> {
   }
 
   Future<void> _placeOrderAndPay() async {
-    final cart = ref.read(cartProvider);
-    final cartNotifier = ref.read(cartProvider.notifier);
+  final cart = ref.read(cartProvider);
+  final cartNotifier = ref.read(cartProvider.notifier);
 
-    if (cart.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Cart is empty")),
-      );
-      return;
+  if (cart.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Cart is empty")),
+    );
+    return;
+  }
+
+  if (addressCtrl.text.trim().isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Please enter delivery address")),
+    );
+    return;
+  }
+
+  setState(() => isLoading = true);
+
+  try {
+    final pharmacyApi = ref.read(pharmacyApiProvider);
+    final paymentRemote = ref.read(paymentRemoteDataSourceProvider);
+
+    final items = cart.map((item) {
+      final medicine = item["medicine"] as Map<String, dynamic>;
+      final medicineId = (medicine["_id"] ?? medicine["id"]).toString();
+      final qty = item["qty"] as int;
+
+      return {
+        "medicine": medicineId,
+        "qty": qty,
+      };
+    }).toList();
+
+    // 1. Create order
+    final orderRes = await pharmacyApi.createOrder(
+      items: items,
+      deliveryAddress: addressCtrl.text.trim(),
+    );
+
+    if (orderRes["success"] != true) {
+      throw Exception(orderRes["message"] ?? "Order creation failed");
     }
 
-    if (addressCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter delivery address")),
-      );
-      return;
+    final order = Map<String, dynamic>.from(orderRes["order"] ?? {});
+    final orderId = (order["_id"] ?? "").toString();
+
+    if (orderId.isEmpty) {
+      throw Exception("Order ID not returned from backend");
     }
 
-    setState(() => isLoading = true);
+    // 2. Initiate eSewa payment
+    final paymentRes = await paymentRemote.initiateEsewaPayment(
+      orderId: orderId,
+    );
 
-    try {
-      final pharmacyApi = ref.read(pharmacyApiProvider);
-      final paymentRemote = ref.read(paymentRemoteDataSourceProvider);
+    debugPrint("Payment response: $paymentRes");
 
-      final items = cart.map((item) {
-        final medicine = item["medicine"] as Map<String, dynamic>;
-        final medicineId = (medicine["_id"] ?? medicine["id"]).toString();
-        final qty = item["qty"] as int;
+    if (paymentRes["success"] != true) {
+      throw Exception(paymentRes["message"] ?? "Payment initiation failed");
+    }
 
-        return {
-          "medicine": medicineId,
-          "qty": qty,
-        };
-      }).toList();
+    final paymentUrl = (paymentRes["paymentUrl"] ?? "").toString();
+    final formData = Map<String, dynamic>.from(paymentRes["formData"] ?? {});
 
-      // 1. Create order
-      final orderRes = await pharmacyApi.createOrder(
-        items: items,
-        deliveryAddress: addressCtrl.text.trim(),
-      );
+    if (paymentUrl.isEmpty || formData.isEmpty) {
+      throw Exception("Invalid payment data from backend");
+    }
 
-      if (orderRes["success"] != true) {
-        throw Exception(orderRes["message"] ?? "Order creation failed");
-      }
+    if (!mounted) return;
 
-      final order = Map<String, dynamic>.from(orderRes["order"] ?? {});
-      final orderId = (order["_id"] ?? "").toString();
-
-      if (orderId.isEmpty) {
-        throw Exception("Order ID not returned from backend");
-      }
-
-      // 2. Initiate eSewa payment
-      final paymentRes = await paymentRemote.initiateEsewaPayment(
-        orderId: orderId,
-      );
-
-      debugPrint("Payment response: $paymentRes");
-
-      if (paymentRes["success"] != true) {
-        throw Exception(paymentRes["message"] ?? "Payment initiation failed");
-      }
-
-      // Backend returns paymentUrl and formData at top level
-      final paymentUrl = (paymentRes["paymentUrl"] ?? "").toString();
-      final formData = Map<String, dynamic>.from(paymentRes["formData"] ?? {});
-
-      if (paymentUrl.isEmpty || formData.isEmpty) {
-        throw Exception("Invalid payment data from backend");
-      }
-
-      if (!mounted) return;
-
-      // 3. Open eSewa payment page
-      final result = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => EsewaPaymentPage(
-            paymentUrl: paymentUrl,
-            formData: formData,
-          ),
+    // 3. Open eSewa payment page
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EsewaPaymentPage(
+          paymentUrl: paymentUrl,
+          formData: formData,
         ),
-      );
+      ),
+    );
 
-      ref.invalidate(myOrdersProvider);
+    // always refresh once
+    ref.invalidate(myOrdersProvider);
 
-      if (!mounted) return;
+    if (!mounted) return;
 
-      if (result == true) {
+    if (result == true) {
+      // give backend a moment to verify and update DB
+      await Future.delayed(const Duration(seconds: 2));
+
+      final refreshedOrders = await ref.refresh(myOrdersProvider.future);
+
+      Map<String, dynamic>? paidOrder;
+      for (final raw in refreshedOrders) {
+        final o = Map<String, dynamic>.from(raw);
+        if ((o["_id"] ?? "").toString() == orderId) {
+          paidOrder = o;
+          break;
+        }
+      }
+
+      final paymentStatus =
+          (paidOrder?["paymentStatus"] ?? "PENDING").toString().toUpperCase();
+      final orderStatus =
+          (paidOrder?["status"] ?? "PENDING").toString().toUpperCase();
+
+      if (paymentStatus == "SUCCESS" || orderStatus == "CONFIRMED") {
         cartNotifier.clearCart();
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -120,19 +140,26 @@ class _CartPageState extends ConsumerState<CartPage> {
         Navigator.pop(context);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Payment failed or cancelled")),
+          const SnackBar(
+            content: Text("Payment callback received, but order not confirmed yet"),
+          ),
         );
       }
-    } catch (e) {
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
+        const SnackBar(content: Text("Payment failed or cancelled")),
       );
-    } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Error: $e")),
+    );
+  } finally {
+    if (mounted) {
+      setState(() => isLoading = false);
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {

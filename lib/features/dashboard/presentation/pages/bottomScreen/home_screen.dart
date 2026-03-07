@@ -1,15 +1,56 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'package:smart_health_care/features/appointments/presentation/pages/my_appointments_page.dart';
 import 'package:smart_health_care/features/dashboard/presentation/pages/bottomScreen/pharmacy_screen.dart';
 import 'package:smart_health_care/features/doctor/presentation/pages/doctor_detail_page.dart';
 import 'package:smart_health_care/features/doctor/presentation/pages/doctors_list_page.dart';
 import 'package:smart_health_care/features/doctor/presentation/providers/doctor_provider.dart';
-class HomeScreen extends ConsumerWidget {
+
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  StreamSubscription<GyroscopeEvent>? _gyroSubscription;
+
+  double cardTiltX = 0.0;
+  double cardTiltY = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _startGyroscope();
+  }
+
+  void _startGyroscope() {
+    _gyroSubscription = gyroscopeEventStream().listen(
+      (GyroscopeEvent event) {
+        if (!mounted) return;
+
+        setState(() {
+          cardTiltX = ((cardTiltX * 0.85) + (event.y * 0.15)).clamp(-0.35, 0.35);
+          cardTiltY = ((cardTiltY * 0.85) + (event.x * 0.15)).clamp(-0.35, 0.35);
+        });
+      },
+      onError: (error) {
+        debugPrint("Gyroscope error: $error");
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _gyroSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final doctorsAsync = ref.watch(doctorsProvider);
 
     return Scaffold(
@@ -23,7 +64,6 @@ class HomeScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
@@ -219,6 +259,8 @@ class HomeScreen extends ConsumerWidget {
                           phone: phone,
                           email: email,
                           isActive: isActive,
+                          tiltX: cardTiltX,
+                          tiltY: cardTiltY,
                           onBook: () {
                             Navigator.push(
                               context,
@@ -267,6 +309,13 @@ class ActionCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,6 +355,8 @@ class DoctorCard extends StatelessWidget {
   final String? phone;
   final String? email;
   final bool isActive;
+  final double tiltX;
+  final double tiltY;
   final VoidCallback onBook;
 
   const DoctorCard({
@@ -314,6 +365,8 @@ class DoctorCard extends StatelessWidget {
     required this.specialization,
     required this.fee,
     required this.onBook,
+    required this.tiltX,
+    required this.tiltY,
     this.phone,
     this.email,
     this.isActive = true,
@@ -321,110 +374,124 @@ class DoctorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          const CircleAvatar(
-            radius: 30,
-            backgroundColor: Color(0xFFEAF3FF),
-            child: Icon(
-              Icons.person,
-              color: Color(0xFF4A90E2),
-              size: 30,
+    final double shakeX = (tiltY * 28).clamp(-10.0, 10.0);
+    final double shakeY = (tiltX * 28).clamp(-10.0, 10.0);
+
+    final transform = Matrix4.identity()
+      ..setEntry(3, 2, 0.001)
+      ..translate(shakeX, shakeY)
+      ..rotateX(tiltX * 0.6)
+      ..rotateY(-tiltY * 0.6);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 100),
+      curve: Curves.easeOut,
+      transform: transform,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  specialization.isEmpty ? "Specialist" : specialization,
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  "Fee: Rs $fee",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (phone != null && phone!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+          ],
+        ),
+        child: Row(
+          children: [
+            const CircleAvatar(
+              radius: 30,
+              backgroundColor: Color(0xFFEAF3FF),
+              child: Icon(
+                Icons.person,
+                color: Color(0xFF4A90E2),
+                size: 30,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    "Phone: $phone",
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ],
-                if (email != null && email!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    "Email: $email",
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ],
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? Colors.green.withOpacity(0.12)
-                        : Colors.red.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    isActive ? "Available" : "Unavailable",
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: isActive ? Colors.green : Colors.red,
-                      fontSize: 12,
+                    name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    specialization.isEmpty ? "Specialist" : specialization,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    "Fee: Rs $fee",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (phone != null && phone!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      "Phone: $phone",
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ],
+                  if (email != null && email!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      "Email: $email",
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? Colors.green.withOpacity(0.12)
+                          : Colors.red.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      isActive ? "Available" : "Unavailable",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: isActive ? Colors.green : Colors.red,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            ElevatedButton(
+              onPressed: onBook,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4A90E2),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          ElevatedButton(
-            onPressed: onBook,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4A90E2),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
               ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 12,
-              ),
+              child: const Text("Book"),
             ),
-            child: const Text("Book"),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
