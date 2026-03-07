@@ -6,8 +6,7 @@ import 'package:smart_health_care/core/services/storage/user_session_service.dar
 import 'package:smart_health_care/features/auth/data/datasources/auth_datasource.dart';
 import 'package:smart_health_care/features/auth/data/models/auth_api_model.dart';
 
-
-// Create provider
+// Provider
 final authRemoteDatasourceProvider = Provider<IAuthRemoteDataSource>((ref) {
   return AuthRemoteDatasource(
     apiClient: ref.read(apiClientProvider),
@@ -16,57 +15,86 @@ final authRemoteDatasourceProvider = Provider<IAuthRemoteDataSource>((ref) {
   );
 });
 
-
 class AuthRemoteDatasource implements IAuthRemoteDataSource {
   final ApiClient _apiClient;
   final UserSessionService _userSessionService;
+  final TokenService _tokenSessionService;
 
-final TokenService _tokenSessionService; 
   AuthRemoteDatasource({
     required ApiClient apiClient,
     required UserSessionService userSessionService,
-     required TokenService tokenSessionService,
-  }) : _apiClient = apiClient,
-       _userSessionService = userSessionService,
-       _tokenSessionService=tokenSessionService;
-
-
-  
+    required TokenService tokenSessionService,
+  })  : _apiClient = apiClient,
+        _userSessionService = userSessionService,
+        _tokenSessionService = tokenSessionService;
 
   @override
   Future<AuthApiModel?> login(String email, String password) async {
-     final response = await _apiClient.post(
+    final response = await _apiClient.post(
       ApiEndpoints.userLogin,
       data: {'email': email, 'password': password},
     );
 
-    if (response.data['success'] == true) {
-      final data = response.data['data'] as Map<String, dynamic>;
-      final user = AuthApiModel.fromJson(data);
+    // Debug (remove later if you want)
+    // print("LOGIN RESPONSE: ${response.data}");
 
-    final token = response.data['token'] as String;
-    await _tokenSessionService.saveToken(token);
-    print("my user id: ${user.id}");
-      await _userSessionService.saveUserSession(
-        userId: user.id,
-      );
-      return user;
+    // Ensure response is Map
+    if (response.data is! Map) {
+      throw Exception("Unexpected login response format");
     }
 
-    return null;
+    final root = Map<String, dynamic>.from(response.data as Map);
+
+    // If success false, return null
+    if (root["success"] != true) {
+      return null;
+    }
+
+    // Ensure data exists and is Map
+    final rawData = root["data"];
+    if (rawData is! Map) {
+      throw Exception("Login response missing 'data' object");
+    }
+
+    final data = Map<String, dynamic>.from(rawData);
+
+    // Create user model from data
+    final user = AuthApiModel.fromJson(data);
+
+    // ✅ Token is usually inside data.token in your backend
+    final token = root["token"] ??
+        data["token"] ??
+        data["accessToken"] ??
+        data["jwt"];
+
+    if (token == null || token.toString().isEmpty || token.toString() == "null") {
+      throw Exception("Token not found in login response");
+    }
+
+    // Save token
+    await _tokenSessionService.saveToken(token.toString());
+
+    // Save user session userId safely
+    final userId = user.id ?? data["_id"]?.toString() ?? data["id"]?.toString();
+    if (userId != null && userId.isNotEmpty) {
+      await _userSessionService.saveUserSession(userId: userId);
+    }
+
+    return user;
   }
 
   @override
-    Future<AuthApiModel> register(AuthApiModel user) async {
+  Future<AuthApiModel> register(AuthApiModel user) async {
     final response = await _apiClient.post(
       ApiEndpoints.userRegister,
       data: user.toJson(),
     );
 
-    if (response.data['success'] == true) {
-      final data = response.data['data'] as Map<String, dynamic>;
-      final registeredUser = AuthApiModel.fromJson(data);
-      return registeredUser;
+    if (response.data is Map && response.data["success"] == true) {
+      final data = response.data["data"];
+      if (data is Map) {
+        return AuthApiModel.fromJson(Map<String, dynamic>.from(data));
+      }
     }
 
     return user;
@@ -74,16 +102,11 @@ final TokenService _tokenSessionService;
 
   @override
   Future<AuthApiModel?> getCurrentUser() {
-    // TODO: implement getCurrentUser
     throw UnimplementedError();
   }
 
-  
   @override
   Future<bool> logout() {
-    // TODO: implement logout
     throw UnimplementedError();
   }
 }
-
-  

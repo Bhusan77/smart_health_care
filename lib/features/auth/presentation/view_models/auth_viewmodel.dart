@@ -10,15 +10,11 @@ final authViewModelProvider = NotifierProvider<AuthViewModel, AuthState>(
 class AuthViewModel extends Notifier<AuthState> {
   late final RegisterUsecase _registerUsecase;
   late final LoginUsecase _loginUsecase;
-  // late final GetCurrentUserUsecase _getCurrentUserUsecase;
-  // late final LogoutUsecase _logoutUsecase;
 
   @override
   AuthState build() {
     _registerUsecase = ref.read(registerUsecaseProvider);
     _loginUsecase = ref.read(loginUsecaseProvider);
-    // _getCurrentUserUsecase = ref.read(getCurrentUserUsecaseProvider);
-    // _logoutUsecase = ref.read(logoutUsecaseProvider);
     return const AuthState();
   }
 
@@ -26,42 +22,92 @@ class AuthViewModel extends Notifier<AuthState> {
     required String username,
     required String email,
     required String password,
-   
   }) async {
-    state = state.copyWith(status: AuthStatus.loading);
+    state = state.copyWith(
+      status: AuthStatus.loading,
+      errorMessage: null,
+    );
 
     final result = await _registerUsecase(
       RegisterParams(
-        username:username,
+        username: username,
         email: email,
         password: password,
-        
       ),
     );
 
     result.fold(
-      (failure) => state = state.copyWith(
-        status: AuthStatus.error,
-        errorMessage: failure.message,
-      ),
-      (success) => state = state.copyWith(status: AuthStatus.registered),
+      (failure) {
+        state = state.copyWith(
+          status: AuthStatus.error,
+          errorMessage: failure.message,
+        );
+      },
+      (success) {
+        state = state.copyWith(
+          status: AuthStatus.registered,
+          errorMessage: null,
+        );
+      },
     );
   }
 
-  Future<void> login({required String email, required String password}) async {
-    state = state.copyWith(status: AuthStatus.loading);
+  Future<void> login({
+    required String email,
+    required String password,
+  }) async {
+    state = state.copyWith(
+      status: AuthStatus.loading,
+      errorMessage: null,
+    );
 
     final result = await _loginUsecase(
       LoginParams(email: email, password: password),
     );
 
     result.fold(
-      (failure) => state = state.copyWith(
-        status: AuthStatus.error,
-        errorMessage: failure.message,
-      ),
-      (user) =>
-          state = state.copyWith(status: AuthStatus.authenticated, user: user),
+      (failure) {
+        state = state.copyWith(
+          status: AuthStatus.error,
+          errorMessage: failure.message,
+        );
+      },
+      (user) {
+        state = state.copyWith(
+          status: AuthStatus.authenticated,
+          user: user,
+          errorMessage: null,
+        );
+      },
     );
+  }
+
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    state = state.copyWith(
+      status: AuthStatus.loading,
+      errorMessage: null,
+    );
+
+    try {
+      // TODO: connect real backend/usecase here later
+      await Future.delayed(const Duration(seconds: 1));
+
+      state = state.copyWith(
+        status: AuthStatus.passwordChanged,
+        errorMessage: null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        status: AuthStatus.error,
+        errorMessage: 'Failed to change password',
+      );
+    }
+  }
+
+  void resetState() {
+    state = const AuthState();
   }
 }

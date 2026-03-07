@@ -28,19 +28,23 @@ class UserSessionService {
 
   // Save user session after login
   Future<void> saveUserSession({
-    required String userId,
-    required String email,
-  
-    required String username,
+    String? userId,
+    String? email,
+    String? username,
     String? phoneNumber,
     String? batchId,
     String? profilePicture,
   }) async {
     await _prefs.setBool(_keyIsLoggedIn, true);
-    await _prefs.setString(_keyUserId, userId);
-    await _prefs.setString(_keyUserEmail, email);
-    
-    await _prefs.setString(_keyUserUsername, username);
+    if (userId != null) {
+      await _prefs.setString(_keyUserId, userId);
+    }
+    if (email != null) {
+      await _prefs.setString(_keyUserEmail, email);
+    }
+    if (username != null) {
+      await _prefs.setString(_keyUserUsername, username);
+    }
     if (phoneNumber != null) {
       await _prefs.setString(_keyUserPhoneNumber, phoneNumber);
     }

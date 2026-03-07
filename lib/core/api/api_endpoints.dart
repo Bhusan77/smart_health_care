@@ -2,7 +2,7 @@ class ApiEndpoints {
   ApiEndpoints._();
 
   // Base URL - change this for production
-  static const String baseUrl = 'http://10.0.2.2:3000/api/auth';
+  static const String baseUrl = 'http://192.168.1.76:8000';
   //static const String baseUrl = 'http://localhost:3000/api/v1';
   // For Android Emulator use: 'http://10.0.2.2:3000/api/v1'
   // For iOS Simulator use: 'http://localhost:5000/api/v1'
@@ -13,7 +13,20 @@ class ApiEndpoints {
 
 
   // ============ User Endpoints ============
-  static const String userLogin = '/login';
-  static const String userRegister = '/register';
+  static const String userLogin = '/api/auth/login';
+  static const String userRegister = '/api/auth/register';
+  static const String updateProfile = '/api/auth/update';
+  static const String getUser = '/api/auth/users';
+
+  static const String doctors = "/api/doctors";
+  static const String appointments = "/api/appointments";
+  static const String medicines = "/api/pharmacy/medicines";
+  static const String orders = "/api/pharmacy/orders";
+  static const String myOrders = "/api/pharmacy/orders/me";
+  static const String createPharmacyOrder = "/api/pharmacy/orders";
+  static const String myPharmacyOrders = "/api/pharmacy/orders/me";
+
+  static const String initiateEsewaPayment = "/api/payments/esewa/initiate";
+
 
 }

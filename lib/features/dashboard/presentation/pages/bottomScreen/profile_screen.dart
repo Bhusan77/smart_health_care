@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:smart_health_care/features/auth/presentation/pages/change_password_screen.dart';
+import 'package:smart_health_care/features/auth/presentation/pages/login_screen.dart';
 import 'package:smart_health_care/features/profile/presentation/pages/edit_profile.dart';
-
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
+  void _logout(BuildContext context) {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const LoginScreen(),
+      ),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final lightYellow = const Color(0xFFFFF9C4);
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.lightBlue,
@@ -25,7 +35,6 @@ class ProfileScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              /// Profile Avatar
               Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -39,30 +48,21 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 child: const CircleAvatar(
                   radius: 55,
-                  backgroundColor:Colors.blue,
+                  backgroundColor: Colors.blue,
                   child: Icon(Icons.person, size: 60, color: Colors.white),
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              /// User Name
               const Text(
                 'User Name',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
               ),
-
               const SizedBox(height: 6),
-
-              /// Email
               Text(
-                'user@example.com',
+                'example@gmail.com',
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
               ),
-
               const SizedBox(height: 30),
-
-              /// Info Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -95,22 +95,28 @@ class ProfileScreen extends StatelessWidget {
                     _profileTile(
                       icon: Icons.lock_outline,
                       title: 'Change Password',
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const ChangePasswordScreen(),
+                          ),
+                        );
+                      },
                     ),
                     const Divider(),
                     _profileTile(
                       icon: Icons.logout,
                       title: 'Logout',
                       iconColor: Colors.blue,
-                      onTap: () {},
+                      onTap: () {
+                        _logout(context);
+                      },
                     ),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 30),
-
-              /// Bottom Buttons
             ],
           ),
         ),
@@ -126,7 +132,10 @@ class ProfileScreen extends StatelessWidget {
   }) {
     return ListTile(
       leading: Icon(icon, color: iconColor ?? Colors.orange),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w500),
+      ),
       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
       onTap: onTap,
     );
