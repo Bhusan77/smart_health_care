@@ -24,7 +24,7 @@ class ProfileScreen extends StatelessWidget {
         elevation: 0,
         centerTitle: true,
         title: const Text(
-          'Edit Profile',
+          'Bhusan Shrestha',
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
